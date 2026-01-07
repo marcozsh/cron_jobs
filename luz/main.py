@@ -5,6 +5,10 @@ import sys
 import json
 import requests
 from time import sleep
+from datetime import datetime
+
+today_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+only_date = datetime.now().strftime("%d/%m/%Y")
 
 load_dotenv()
 
@@ -120,7 +124,7 @@ def get_electricity_bill_template(user_name: str, account_number: str, due_date:
                                                 </tr>
                                                 <tr>
                                                     <td style="padding: 8px 0; font-size: 14px; color: #666666; border-top: 1px solid #e0e0e0;">
-                                                        <strong>Fecha de vencimiento:</strong>
+                                                        <strong>Fecha de consulta:</strong>
                                                     </td>
                                                     <td style="padding: 8px 0; font-size: 14px; color: #d32f2f; text-align: right; font-weight: bold; border-top: 1px solid #e0e0e0;">
                                                         {due_date}
@@ -152,27 +156,29 @@ def get_electricity_bill_template(user_name: str, account_number: str, due_date:
     return html_template
 
 if __name__ == "__main__":
+    print(f"{today_date} - Iniciando proceso de verificación de deuda...")
     data = get_debt()
     if data is None:
-        print("No se pudo obtener la información de deuda.")
+        print(f"{today_date} - No se pudo obtener la información de deuda.")
         sys.exit(1)
     if data[0] == 0 or data[0] is None:
-        print("No hay deuda pendiente.")
+        print(f"{today_date} - No hay deuda pendiente.")
     elif data[0] > 0:
-        print(f"Cliente presenta deuda de ${data[0]}")
+        print(f"{today_date} - Cliente presenta deuda de ${data[0]}")
         for emails in MAILS_TO.split(","):
-            print(f"Enviando correo a {emails.strip()}...")
+            print(f"{today_date} - Enviando correo a {emails.strip()}...")
             email_send = (send_email(
                 to=emails.strip(),
                 subject="Alerta de deuda pendiente",
                 html=get_electricity_bill_template(
                     user_name="Marcos Peña",
                     account_number=N_ACCOUNT,
-                    due_date="30/06/2024",
+                    due_date=only_date,
                     amount=str(data[0]),
-                    payment_link=f"https://payments-gateway.grupocge.cl/payment/santander?nrzas={data[1]}&ctaCto={N_ACCOUNT}&debtValue={int(data[0])}&channel=URL&company=CGE&email=marc.penar@outlook.cl&calloutURL=https://sucursalvirtual.cge.cl/comprobante-de-pago"
+                    payment_link=f"https://payments-gateway.grupocge.cl/payment/santander?nrzas={data[1]}&ctaCto={N_ACCOUNT}&debtValue={int(data[0])}&channel=URL&company=CGE&email={emails.strip()}&calloutURL=https://sucursalvirtual.cge.cl/comprobante-de-pago"
                 )))
             if email_send["id"] is not None:
-                print(f"Correo enviado correctamente a {emails.strip()}. ID: {email_send['id']}")
+                print(f"{today_date} - Correo enviado correctamente a {emails.strip()}. ID: {email_send['id']}")
             else:
-                print(f"Error al enviar correo a {emails.strip()}.")
+                print(f"{today_date} - Error al enviar correo a {emails.strip()}.")
+    print(f"{today_date} - Proceso finalizado.")
