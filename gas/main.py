@@ -92,4 +92,4 @@ if __name__ == "__main__":
                 html=html_content
             )
             print(f"{today_date} - Correo enviado a {emails.strip()}: {response['id']}")
-    print(f"{today_date} - Proceso de verificación de deuda finalizado.")
+     print(f"{today_date} - Proceso de verificación de deuda finalizado.")

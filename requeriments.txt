@@ -1,3 +1,7 @@
 resend
 requests
 dotenv
+playwright
+chromium
+selenium 
+webdriver-manager 
