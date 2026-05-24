@@ -201,37 +201,45 @@ def get_aguas_andinas_info(numero_cuenta: str, headless: bool = True):
 
 
 def scrape_aguas_andinas():
-    #numero_cuenta = "2854021"
-    #N_ACCOUNT=1704598
-    #N_ACCOUNT=2854021
-    result = get_aguas_andinas_info(N_ACCOUNT, headless=True)
-    
-    if result:
-        print("\n" + "="*50)
-        print(f"{today_date} - DATOS EXTRAIDOS:")
-        print("="*50)
-        for key, value in result.items(): 
-            print(f"{today_date} - {key}: {value}")
-        print("="*50 + "\n")
-        if result['tiene_deuda']:
-            for emails in MAILS_TO.split(","):
-                html_content = get_template(
-                    type_account="Agua",
-                    user_name="Marco Peña",
-                    account_number=N_ACCOUNT,
-                    due_date=only_date,
-                    amount=str(result['saldo']),
-                    payment_link="https://www.aguasandinas.cl/web/aguasandinas/pagar-mi-cuenta"
-                )
-                subject = "⚡ Boleta de Agua Disponible"
-                response = send_email(
-                    to=emails.strip(),
-                    subject=subject,
-                    html=html_content
-                )
-                print(f"{today_date} - Correo enviado a {emails.strip()}: {response['id']}")
-    else:
-        print(f"{today_date} - No se pudo obtener informacion.")
+
+    for i in range(1, 4):  # Intentar hasta 3 veces
+        print(f"{today_date} - Intento {i}: Obteniendo información de Aguas Andinas...")
+        try:
+            result = get_aguas_andinas_info(N_ACCOUNT, headless=True)
+            if result:
+                print("\n" + "="*50)
+                print(f"{today_date} - DATOS EXTRAIDOS:")
+                print("="*50)
+                for key, value in result.items(): 
+                    print(f"{today_date} - {key}: {value}")
+                print("="*50 + "\n")
+                if result['tiene_deuda']:
+                    for emails in MAILS_TO.split(","):
+                        html_content = get_template(
+                            type_account="Agua",
+                            user_name="Marco Peña",
+                            account_number=N_ACCOUNT,
+                            due_date=only_date,
+                            amount=str(result['saldo']),
+                            payment_link="https://www.aguasandinas.cl/web/aguasandinas/pagar-mi-cuenta"
+                        )
+                        subject = "⚡ Boleta de Agua Disponible"
+                        response = send_email(
+                            to=emails.strip(),
+                            subject=subject,
+                            html=html_content
+                        )
+                        print(f"{today_date} - Correo enviado a {emails.strip()}: {response['id']}")
+                break
+            else:
+                print(f"{today_date} - No se pudo obtener informacion.")
+                time.sleep(4)
+
+        except Exception as e:
+            print(f"{today_date} - Error al obtener información: {e}")
+            time.sleep(random.uniform(5, 10))
+            continue
+        
 
 
 if __name__ == "__main__":
