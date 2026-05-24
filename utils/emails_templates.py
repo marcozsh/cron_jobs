@@ -1,6 +1,6 @@
 def get_template(type_account: str, user_name: str, account_number: str, due_date: str, amount: str, payment_link: str = "#") -> str:
     """
-    Template HTML para notificación de factura 
+    Template HTML para notificación de boleta 
     
     Args:
         type_account: Tipo de cuenta (Luz, Gas o Agua)
@@ -27,7 +27,7 @@ def get_template(type_account: str, user_name: str, account_number: str, due_dat
                         <!-- Header -->
                         <tr>
                             <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px 8px 0 0;">
-                                <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">⚡ Factura Disponible</h1>
+                                <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: bold;">⚡ Boleta Disponible</h1>
                             </td>
                         </tr>
                         
@@ -38,12 +38,12 @@ def get_template(type_account: str, user_name: str, account_number: str, due_dat
                                     Hola <strong>{user_name}</strong>,
                                 </p>
                                 <p style="margin: 15px 0 0; font-size: 16px; color: #333333; line-height: 1.5;">
-                                    Tu factura de {type_account} ya está disponible para consulta y pago.
+                                    Tu boleta de {type_account} ya está disponible para consulta y pago.
                                 </p>
                             </td>
                         </tr>
                         
-                        <!-- Detalles de la factura -->
+                        <!-- Detalles de la boleta -->
                         <tr>
                             <td style="padding: 20px 40px;">
                                 <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8f9fa; border-radius: 6px; padding: 20px;">

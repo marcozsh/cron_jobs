@@ -85,11 +85,11 @@ if __name__ == "__main__":
                 amount=str(data[0]),
                 payment_link="https://sucursalvirtual.metrogas.cl/pagos"
             )
-            subject = "⚡ Factura de Gas Disponible"
+            subject = "⚡ Boleta de Gas Disponible"
             response = send_email(
                 to=emails.strip(),
                 subject=subject,
                 html=html_content
             )
             print(f"{today_date} - Correo enviado a {emails.strip()}: {response['id']}")
-     print(f"{today_date} - Proceso de verificación de deuda finalizado.")
+    print(f"{today_date} - Proceso de verificación de deuda finalizado.")

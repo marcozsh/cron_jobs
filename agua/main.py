@@ -1,99 +1,119 @@
-import requests
-from bs4 import BeautifulSoup
+import os
+import sys
 import re
+import time
+import random
+from dotenv import load_dotenv
+from playwright.sync_api import sync_playwright
+from curl_cffi import requests
+from bs4 import BeautifulSoup
+from datetime import datetime
+from utils.emails_templates import get_template
+from utils.resend_email import send_email
 
-def get_aguas_andinas_info(numero_cuenta: str):
-    """
-    Obtiene información de cuenta de Aguas Andinas usando requests con cookies de sesión.
+load_dotenv()
+
+today_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+only_date = datetime.now().strftime("%d/%m/%Y")
+
+N_ACCOUNT = os.getenv('N_ACCOUNT') or sys.exit("N_ACCOUNT no está configurado en las variables de entorno.")
+MAILS_TO = os.getenv('MAILS_TO') or sys.exit("MAILS_TO no está configurado en las variables de entorno.")
+
+
+
+
+def get_aguas_andinas_info(numero_cuenta: str, headless: bool = True):
     
-    Args:
-        numero_cuenta: Número de cuenta a consultar
-    
-    Returns:
-        dict con la información de la cuenta o None si hay error
-    """
-    
-    # Crear sesión para mantener cookies
     session = requests.Session()
     
-    # Headers que simulan un navegador real
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=headless,
+            args=['--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage', '--no-sandbox']
+        )
+        
+        context = browser.new_context(
+            viewport={'width': 1920, 'height': 1080},
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
+            locale='es-ES',
+            timezone_id='America/Santiago',
+        )
+        
+        page = context.new_page()
+        
+        try:
+            print(f"{today_date} - Navegando a Aguas Andinas...")
+            main_url = 'https://www.aguasandinas.cl/web/aguasandinas/pagar-mi-cuenta'
+            
+            response = page.goto(main_url, wait_until='networkidle', timeout=45000)
+            
+            if response.status == 403:
+                print(f"{today_date} - Bloqueado 403, reintentando...")
+                time.sleep(random.uniform(5, 10))
+                response = page.goto(main_url, wait_until='networkidle', timeout=45000)
+            
+            page_content = page.content()
+            if 'Access Denied' in page_content or 'Powered By Incapsula' in page_content:
+                print(f"{today_date} - Esperando challenge de JS...")
+                time.sleep(random.uniform(10, 20))
+                page.reload(wait_until='networkidle', timeout=45000)
+                page_content = page.content()
+                
+                if 'Access Denied' in page_content or 'Powered By Incapsula' in page_content:
+                    print(f"{today_date} - Sigue bloqueado.")
+                    return None
+            
+            print(f"{today_date} - Pagina cargada. Status: {response.status}")
+            
+            cookies = context.cookies()
+            
+            for c in cookies:
+                session.cookies.set(c['name'], c['value'], domain=c.get('domain', '.aguasandinas.cl'), path=c.get('path', '/'))
+            
+            p_auth_match = re.search(r'p_auth=([a-zA-Z0-9]+)', page_content)
+            p_auth = p_auth_match.group(1) if p_auth_match else "33ZMEBla"
+            
+            browser.close()
+            
+        except Exception as e:
+            print(f"{today_date} - Error en Playwright: {e}")
+            browser.close()
+            return None
+    
     headers = {
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'accept-language': 'es,en-US;q=0.9,en;q=0.8',
-        'cache-control': 'no-cache',
-        'pragma': 'no-cache',
-        'sec-ch-ua': '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'document',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-site': 'same-origin',
-        'sec-fetch-user': '?1',
-        'upgrade-insecure-requests': '1',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'es,en-US;q=0.9,en;q=0.8',
+        'Cache-Control': 'no-cache',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Origin': 'https://www.aguasandinas.cl',
+        'Pragma': 'no-cache',
+        'Referer': 'https://www.aguasandinas.cl/web/aguasandinas/pagar-mi-cuenta',
+        'Sec-CH-UA': '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+        'Sec-CH-UA-Mobile': '?0',
+        'Sec-CH-UA-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36',
-        'origin': 'https://www.aguasandinas.cl',
-        'referer': 'https://www.aguasandinas.cl/web/aguasandinas/pagar-mi-cuenta',
     }
     
-    session.headers.update(headers)
-    
-    # Cookies de sesión válida (estas expiran, hay que actualizarlas periódicamente)
-    cookies = {
-        'COOKIE_SUPPORT': 'true',
-        'GUEST_LANGUAGE_ID': 'es_ES',
-        'visid_incap_39543': 'KCVFrIyrTv2uYPEiTtm1BLvBX2kAAAAAQUIPAAAAAAAcgnFkdmGYuRojRTA2KADm',
-        '_gcl_au': '1.1.786990405.1767883226',
-        '_fbp': 'fb.1.1767883227440.43597438118615495',
-        '_hjSessionUser_2360424': 'eyJpZCI6IjRhZTUzOTIxLTdiN2MtNTQ4Ny1iYTVhLWZhMDYwZjhhNTg3YiIsImNyZWF0ZWQiOjE3Njc4ODMyMjczNzMsImV4aXN0aW5nIjp0cnVlfQ==',
-        'JSESSIONID': 'u26514dZw7K7LsMhoAvCo-gL-W4fVKx0E4JD28eu.nodo2',
-        'U0z1e0Z0i1': '!pHLD0eUwIYcg2zenAOtUEGzwIRm4A5RPrMFTVeJSpnCoabPzujGojkWJbKKyEQbhJI11eTLK5reDC2i0W9pL+d1T+FnBukGgsNgFo02Sp9o=',
-        'nlbi_39543': 'nJIqS5sllVJ+oJ1MXig80gAAAAAvVVAgj5EFx/drFeO9rW+X',
-        'incap_ses_1842_39543': 'kJWuWdNbeFp1PA0H3BmQGY9ubmkAAAAAgF8tvdr9azVEeC1T4+EV9A==',
-        '_gid': 'GA1.2.364709725.1768844953',
-        '_clck': 'bgb12^2^g2u^0^2199',
-        '_hjSession_2360424': 'eyJpZCI6IjRjNzBmNDc5LWQ4MDMtNGE1NS1hYWU2LWQzNjU3OTY3YzIzMCIsImMiOjE3Njg4NDQ5NTMwMzYsInMiOjAsInIiOjAsInNiIjowLCJzciI6MCwic2UiOjAsImZzIjowLCJzcCI6MH0=',
-        '_ga': 'GA1.2.1626821661.1767883227',
-        '_gat_UA-32844294-11': '1',
-        'LFR_SESSION_STATE_54701': '1768845678127',
-        '_clsk': '1ec21ka^1768845678808^6^1^v.clarity.ms/collect',
-        'nlbi_39543_2147483392': 'fdVOUQTvKR8WoIq/Xig80gAAAACqBovgkRpIA8xcVvLRAxGW',
-        'reese84': '3:p6UACN2zwo5HNIXV/bINLg==:FogjJkk9J2PxSvcLf5KuX3kXqKJ5wyglLs+08ZeAYZ/Q2epElJf3f9Nbjccdq+mwnK9tRRLTNfkmjU+xhq3COh+J8DzQw5Iw3pcbBtDseJEtw/rd54MKDGAuQZuxo1t2zSy/UxBEOOtTJ/VxxkgKiHSnOVtNv6fniNG2axOcboWCgihMOkDq/rja5+f74leJWzQFO8a9Eb2jg0qWhMRjIHaXpwtqYptrvnu/oDGBbG8PQlAIxdZ6tOlh1eAnZB3CdWmYVvup0YMyKjq1Gy5cmKWVzflm0zU1BRjmigo+iyV0PKVD+swPaQtSGNbObRXfkbzxjxqcf4gL6cQrd736K0DD0ADSxhB47eflRGrOCaMOlWBS4qo9Lz1TaJ6OmP7Xth4rZDoCfpc4aiBW3ieEG2CsFa1WaSa1f6FfXNKa7YS7idXD2NDrZ0TgTcGlTw4U0PLGd2fzPvLUUZS6KjYegvzNBM2ZQHpJxLR6fZ1rAUk=:HrciI9nMK7ZMytpdZks8EIBwQihNIobEuNiWH6ACCHo=',
-        '_ga_PLWSNHH20D': 'GS2.1.s1768844945$o8$g1$t1768845696$j39$l0$h0',
-    }
-    
-    session.cookies.update(cookies)
-    
-    # Primero hacemos GET a la página para obtener el p_auth token
-    print("Obteniendo página principal...")
-    main_url = 'https://www.aguasandinas.cl/web/aguasandinas/pagar-mi-cuenta'
-    
-    try:
-        response = session.get(main_url, timeout=30)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        print(f"Error al obtener página principal: {e}")
-        return None
-    
-    # Verificar si estamos bloqueados
-    if "Access Denied" in response.text or "Error 15" in response.text:
-        print("ERROR: Acceso bloqueado. Las cookies han expirado.")
-        print("Necesitas obtener nuevas cookies desde el navegador.")
-        return None
-    
-    # Buscar el p_auth token en la página
-    p_auth_match = re.search(r'p_auth=([a-zA-Z0-9]+)', response.text)
-    if p_auth_match:
-        p_auth = p_auth_match.group(1)
-        print(f"Token p_auth encontrado: {p_auth}")
-    else:
-        print("No se encontró el token p_auth, usando valor por defecto...")
-        p_auth = "33ZMEBla"
-    
-    # URL para buscar cuenta
     portlet_id = "cl_aguasandinas_pago_cuenta_pub_PagarCuentaPubPorltetPortlet_INSTANCE_jL3QTDf9o9xo"
-    search_url = f"https://www.aguasandinas.cl/web/aguasandinas/pagar-mi-cuenta?p_p_id={portlet_id}&p_p_lifecycle=1&p_p_state=normal&p_p_mode=view&_{portlet_id}_javax.portlet.action=%2Fcuenta%2Fbuscar&_{portlet_id}_cmd=buscar&p_auth={p_auth}"
     
-    # Datos del formulario para buscar por número de cuenta
+    print(f"\n=== {today_date} - PASO 1: Buscando cuenta ===")
+    
+    search_url = (
+        f"https://www.aguasandinas.cl/web/aguasandinas/pagar-mi-cuenta"
+        f"?p_p_id={portlet_id}"
+        f"&p_p_lifecycle=1"
+        f"&p_p_state=normal"
+        f"&p_p_mode=view"
+        f"&_{portlet_id}_javax.portlet.action=%2Fcuenta%2Fbuscar"
+        f"&_{portlet_id}_cmd=buscar"
+        f"&p_auth={p_auth}"
+    )
+    
     form_data = {
         f'_{portlet_id}_buscador_cuenta': numero_cuenta,
         f'_{portlet_id}_tipoBuscar': 'cuenta',
@@ -101,84 +121,117 @@ def get_aguas_andinas_info(numero_cuenta: str):
         f'_{portlet_id}_tipoConvenio': 'x',
     }
     
-    print(f"Buscando cuenta: {numero_cuenta}...")
+    response = session.post(search_url, headers=headers, data=form_data, timeout=30, impersonate="chrome131")
+    #print(f"POST Status: {response.status_code}")
     
-    try:
-        response = session.post(search_url, data=form_data, timeout=30)
-        response.raise_for_status()
-    except requests.RequestException as e:
-        print(f"Error en la búsqueda: {e}")
-        return None
-    
-    # Verificar si estamos bloqueados
-    if "Access Denied" in response.text or "Error 15" in response.text:
-        print("ERROR: Acceso bloqueado durante la búsqueda.")
-        return None
-    
-    # Parsear la respuesta HTML
     soup = BeautifulSoup(response.text, 'html.parser')
     
-    # Buscar información de la cuenta en la respuesta
+    form_agregar = soup.find('form', {'id': 'agregar_cuentas'})
+    if not form_agregar:
+        print(f"{today_date} - No se encontro formulario 'agregar_cuentas'")
+        return None
+    
+    form_action = form_agregar.get('action', '')
+    if form_action.startswith('/'):
+        form_action = f"https://www.aguasandinas.cl{form_action}"
+    
+    radios = form_agregar.find_all('input', {'type': 'radio'})
+    if not radios:
+        print(f"{today_date} - No se encontraron radio buttons")
+        return None
+    
+    first_radio = radios[0]
+    first_radio_name = first_radio.get('name', '')
+    first_radio_value = first_radio.get('value', '')
+    print(f"{today_date} - Cuenta encontrada: {first_radio_value}")
+    
     result = {
         'numero_cuenta': numero_cuenta,
-        'html_response': response.text,
+        'cuenta_info': first_radio_value,
     }
     
-    # Intentar extraer datos específicos
-    # Buscar tabla de resultados o divs con información
+    print(f"\n=== {today_date} - PASO 2: Seleccionando cuenta ===")
     
-    # Buscar el radio button que contiene la info de la cuenta
-    radio_inputs = soup.find_all('input', {'type': 'radio'})
-    for radio in radio_inputs:
-        value = radio.get('value', '')
-        if numero_cuenta in value:
-            result['cuenta_info'] = value
-            print(f"Información encontrada: {value}")
-            break
+    submit_data = {first_radio_name: first_radio_value}
     
-    # Buscar montos o deudas
-    monto_elements = soup.find_all(text=re.compile(r'\$[\d.,]+'))
-    if monto_elements:
-        result['montos'] = [m.strip() for m in monto_elements]
-        print(f"Montos encontrados: {result['montos']}")
+    hidden_inputs = form_agregar.find_all('input', {'type': 'hidden'})
+    for hidden in hidden_inputs:
+        name = hidden.get('name')
+        value = hidden.get('value', '')
+        if name:
+            submit_data[name] = value
     
-    # Buscar tablas con información
-    tables = soup.find_all('table')
-    for i, table in enumerate(tables):
-        rows = table.find_all('tr')
-        if rows:
-            result[f'tabla_{i}'] = []
-            for row in rows:
-                cells = row.find_all(['td', 'th'])
-                if cells:
-                    result[f'tabla_{i}'].append([cell.get_text(strip=True) for cell in cells])
+    time.sleep(random.uniform(2, 4))
     
-    print("\n" + "="*50)
-    print("RESPUESTA OBTENIDA")
-    print("="*50)
+    response2 = session.post(form_action, headers=headers, data=submit_data, timeout=30, impersonate="chrome131")
+    #print(f"Submit Status: {response2.status_code}")
     
-    # Mostrar un preview del HTML (primeros 3000 caracteres)
-    print("\nPreview del HTML:")
-    print(response.text[:3000])
+    print(f"\n=== {today_date} - PASO 3: Analizando pagina de pago ===")
+    
+    soup2 = BeautifulSoup(response2.text, 'html.parser')
+    
+    if 'Realizar el Pago' in soup2.get_text():
+        #print("Pagina de pago cargada correctamente")
+        result['realizar_pago'] = True
+    else:
+        result['realizar_pago'] = False
+    
+    div_total = soup2.find('div', {'id': 'div-total'})
+    if div_total:
+        saldo_text = div_total.get_text(strip=True)
+        print(f"{today_date} - Deuda encontrada: {saldo_text}")
+        result['tiene_deuda'] = True
+        result['saldo'] = saldo_text.replace("$", "")
+        
+        monto_match = re.search(r'\$[\d.,]+', saldo_text)
+        if monto_match:
+            result['monto_deuda'] = monto_match.group()
+    else:
+        cuenta_dia = soup2.find(class_='palabra-cuenta-dia')
+        if cuenta_dia:
+            texto = cuenta_dia.get_text(strip=True)
+            print(f"{today_date} - Estado: {texto}")
+            result['tiene_deuda'] = False
+            result['estado'] = texto
+        else:
+            print(f"{today_date} - No se encontro informacion de deuda")
+            result['tiene_deuda'] = None
     
     return result
 
 
 def scrape_aguas_andinas():
-    """Función principal para obtener datos de Aguas Andinas"""
-    numero_cuenta = "1704598"
-    
-    result = get_aguas_andinas_info(numero_cuenta)
+    #numero_cuenta = "2854021"
+    #N_ACCOUNT=1704598
+    #N_ACCOUNT=2854021
+    result = get_aguas_andinas_info(N_ACCOUNT, headless=True)
     
     if result:
         print("\n" + "="*50)
-        print("DATOS EXTRAÍDOS:")
+        print(f"{today_date} - DATOS EXTRAIDOS:")
         print("="*50)
-        for key, value in result.items():
-            if key != 'html_response':
-                print(f"{key}: {value}")
+        for key, value in result.items(): 
+            print(f"{today_date} - {key}: {value}")
+        print("="*50 + "\n")
+        if result['tiene_deuda']:
+            for emails in MAILS_TO.split(","):
+                html_content = get_template(
+                    type_account="Agua",
+                    user_name="Marco Peña",
+                    account_number=N_ACCOUNT,
+                    due_date=only_date,
+                    amount=str(result['saldo']),
+                    payment_link="https://www.aguasandinas.cl/web/aguasandinas/pagar-mi-cuenta"
+                )
+                subject = "⚡ Boleta de Agua Disponible"
+                response = send_email(
+                    to=emails.strip(),
+                    subject=subject,
+                    html=html_content
+                )
+                print(f"{today_date} - Correo enviado a {emails.strip()}: {response['id']}")
     else:
-        print("No se pudo obtener información de la cuenta.")
+        print(f"{today_date} - No se pudo obtener informacion.")
 
 
 if __name__ == "__main__":

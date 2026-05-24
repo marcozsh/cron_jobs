@@ -1,4 +1,3 @@
-import resend
 from dotenv import load_dotenv
 import os 
 import sys
@@ -61,7 +60,7 @@ if __name__ == "__main__":
             print(f"{today_date} - Enviando correo a {emails.strip()}...")
             email_send = (send_email(
                 to=emails.strip(),
-                subject="⚡ Factura de Luz Disponible",
+                subject="⚡ Boleta de Luz Disponible",
                 html=get_template(
                     type_account="luz",
                     user_name="Marcos Peña",
