@@ -8,16 +8,25 @@ Sistema automatizado que consulta deudas de servicios basicos (**Agua**, **Gas**
 envio_gastos/
 ├── agua/           # Scraper de Aguas Andinas (bypass Imperva)
 │   ├── main.py
-│   └── requirements.txt
+│   └── .env       # Variables de entorno para agua
+├
 ├── gas/            # Consulta de Metrogas
-│   └── main.py
+│   ├── main.py
+│   └── .env       # Variables de entorno para gas
+├
 ├── luz/            # Consulta de CGE Luz
-│   └── main.py
+│   ├── main.py
+│   └── .env       # Variables de entorno para luz
+├
 ├── utils/          # Utilidades compartidas
 │   ├── emails_templates.py   # Templates HTML para emails
-│   └── resend_email.py       # Envio de emails via Resend API
+│   ├── resend_email.py   # Envio de emails via Resend API
+│   └── .env       # Variables de entorno para utils (Resend API key, destinatarios, etc)
+├
+├── is_up_web/      # Consulta webs para ver si están activas
+│   ├── main.py
+│   └── .env       # Variables de entorno para is_up_web
 ├── requirements.txt
-└── .env            # Variables de entorno
 ```
 
 ## Servicios
@@ -64,18 +73,18 @@ Crear un archivo `.env` en la raiz con las siguientes variables:
 RESEND_API_KEY=re_xxxxxxxxxxxxx
 FROM_EMAIL=notificaciones@tudominio.com
 
-# Destinatarios (separados por coma)
+# Destinatarios (separados por coma) en todos los .env debe ir esta variable
 MAILS_TO=email1@gmail.com,email2@gmail.com
 
 # === AGUA ===
 N_ACCOUNT=2854021
 
 # === GAS ===
-URL=https://api-metrogas.example.com
-URL_JOBS=https://api-metrogas.example.com/jobs
+URL=https://utilitygo.widergy.com/api/v1/accounts/complete_debts
+URL_JOBS=https://utilitygo-api-4.widergy.com/async_request/jobs
 
 # === LUZ ===
-URL=https://api-cge.example.com/consulta
+URL=https://orchestrator-portalescge-prd.lfr.cloud/getPagoInfo
 ```
 
 ## Uso

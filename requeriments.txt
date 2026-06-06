@@ -5,3 +5,5 @@ playwright
 chromium
 selenium 
 webdriver-manager 
+curl_cffi
+beautifulsoup4
